@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 PROJECT_ID = "skripsi-f7dc5"
 SECRET_NAME = "google-services"
-BUCKET_NAME = "<your-storage-bucket>.appspot.com"
+BUCKET_NAME = "skripsi-f7dc5.firebasestorage.app"
 
 # Fungsi untuk mengambil secret dari Google Secret Manager
 def get_secret(secret_name):
@@ -124,6 +124,5 @@ def classify():
         logging.error(f"Terjadi kesalahan: {repr(e)}")
         return jsonify({'error': 'Terjadi kesalahan dalam klasifikasi'}), 500
 
-# Jalankan aplikasi di Google Cloud Run
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
