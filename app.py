@@ -3,185 +3,127 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
-import json
-import logging
 import uuid
 from datetime import datetime
+import json
 from google.cloud import storage, secretmanager
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials, db, storage as firebase_storage
 
-# Configure logging
-logging.basicConfig(
-    level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-# Flask app setup
 app = Flask(__name__)
 
-# Google Secret Manager client
-secret_client = secretmanager.SecretManagerServiceClient()
+PROJECT_ID = "skripsi-f7dc5"
+SECRET_NAME = "google-services"
+BUCKET_NAME = "<your-storage-bucket>.appspot.com"
 
-# Retrieve secret from Secret Manager
-def get_secret(secret_name, project_id):
-    try:
-        name = f"projects/{project_id}/secrets/{secret_name}/versions/latest"
-        response = secret_client.access_secret_version(request={"name": name})
-        return response.payload.data.decode("UTF-8")
-    except Exception as e:
-        logging.error(f"Error accessing secret {secret_name}: {repr(e)}")
-        raise e
+# Fungsi untuk mengambil secret dari Google Secret Manager
+def get_secret(secret_name):
+    client = secretmanager.SecretManagerServiceClient()
+    secret_path = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
+    response = client.access_secret_version(request={"name": secret_path})
+    return json.loads(response.payload.data.decode("UTF-8"))
 
-# Initialize Firebase using secret from Secret Manager
+# Inisialisasi Firebase
 def initialize_firebase():
     try:
-        service_account_info = get_secret("firebase-credentials", "<your-project-id>")
-        cred = credentials.Certificate(json.loads(service_account_info))
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://<your-database-name>.firebaseio.com/',
-        })
+        service_account_info = get_secret(SECRET_NAME)
+        cred = credentials.Certificate(service_account_info)
+        firebase_admin.initialize_app(cred)
+        logging.info("Firebase initialized successfully.")
     except Exception as e:
-        logging.error(f"Error initializing Firebase: {repr(e)}")
+        logging.error(f"Failed to initialize Firebase: {repr(e)}")
         raise e
 
-# Load model from GCS
-def load_model(bucket_name, model_path):
+# Load model Google Cloud Storage
+def load_model():
     try:
-        bucket = gcs_client.bucket(bucket_name)
-        blob = bucket.blob(model_path)
+        client = storage.Client()
+        bucket = client.bucket(BUCKET_NAME)
+        blob = bucket.blob("models/model.keras")
         model_file = io.BytesIO()
         blob.download_to_file(model_file)
         model_file.seek(0)
         return tf.keras.models.load_model(model_file)
     except Exception as e:
         logging.error(f"Error loading model from GCS: {repr(e)}")
-        return None
-
-# Load recommendations from GCS
-def load_recommend(bucket_name, recommendations_path):
-    try:
-        bucket = gcs_client.bucket(bucket_name)
-        blob = bucket.blob(recommendations_path)
-        recommendations_file = blob.download_as_text(encoding="utf-8")
-        return json.loads(recommendations_file)
-    except Exception as e:
-        logging.error(f"Error loading recommendations from GCS: {repr(e)}")
         raise e
 
-# Upload image to Google Cloud Storage
-def save_image(image_file, filename, bucket_name):
-    try:
-        bucket = gcs_client.bucket(bucket_name)
-        blob = bucket.blob(filename)
-        blob.upload_from_file(image_file, content_type='image/jpeg')
-        blob.make_public()
-        return blob.public_url
-    except Exception as e:
-        logging.error(f"Error uploading image to GCS: {repr(e)}")
-        raise e
-
-def save_result(user_id, date, disease, confidence, img_url):
-    try:
-        # Generate a unique key for the entry
-        ref = db.reference('classification_history')
-        new_entry = ref.push()
-        
-        # Save the classification result
-        new_entry.set({
-            'user_id': user_id,
-            'date': date,
-            'disease': disease,
-            'confidence': confidence,
-            'img_url': img_url
-        })
-        logging.info("Classification result saved to Firebase successfully.")
-    except Exception as e:
-        logging.error(f"Error saving to Firebase: {repr(e)}")
-        raise e
-
-# Prepare image for prediction
-def prepare_image(image, target_size):
-    try:
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-        image = image.resize(target_size)
-        image = np.array(image)
-        image = image / 255.0
-        image = np.expand_dims(image, axis=0)
-        return image
-    except Exception as e:
-        logging.error(f"Error preparing image: {repr(e)}")
-        raise e
-
-# Initialize Google Cloud Storage and Firebase
-project_id = "<your-project-id>"
-gcs_client = storage.Client()
 initialize_firebase()
+model = load_model()
 
-# Load sensitive data from Secret Manager
-bucket_name = get_secret("gcs-bucket-name", project_id)
-model_path = "models/model.keras"
-recommendations_path = "configs/recommendations.json"
-
-# Load model and recommendations
-model = load_model(bucket_name, model_path)
-if not model:
-    logging.error("Model failed to load. Please check the file in GCS.")
-
-recommendations = load_recommend(bucket_name, recommendations_path)
-if not recommendations:
-    raise Exception("Recommendations failed to load. Please check the file in GCS.")
-
-# Define disease classes
+# Daftar kelas penyakit
 class_names = ['Disease Free', 'Disease Free Fruit', 'Phytophthora', 'Red Rust', 'Scab', 'Styler End Rot']
 
-# Process classification request
+# Fungsi untuk memproses gambar sebelum klasifikasi
+def prepare_image(image, target_size=(224, 224)):
+    image = image.convert("RGB")
+    image = image.resize(target_size)
+    image = np.array(image) / 255.0
+    return np.expand_dims(image, axis=0)
+
+# Simpan gambar ke Firebase Storage
+def save_image(image_file, user_id):
+    filename = f"images/{user_id}/{uuid.uuid4()}.jpg"
+    bucket = firebase_storage.bucket()
+    blob = bucket.blob(filename)
+    blob.upload_from_file(image_file, content_type='image/jpeg')
+    return filename
+
+# Ambil rekomendasi dari Firebase Realtime Database
+def get_recommendation(disease):
+    ref = db.reference('recommendations')
+    recommendations = ref.get() or {}
+    return recommendations.get(disease, "Tidak ada rekomendasi untuk penyakit ini.")
+
+# Simpan hasil klasifikasi ke Firebase Database
+def save_result(user_id, disease, confidence, image_path):
+    ref = db.reference(f"history/{user_id}")
+    new_entry = ref.push()
+    new_entry.set({
+        "diseaseName": disease,
+        "accuracy": f"{confidence:.2%}",
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "imagePath": image_path
+    })
+
+# Endpoint untuk klasifikasi gambar
 @app.route('/classify', methods=['POST'])
 def classify():
-    if 'imageFile' not in request.files:
-        logging.error("No image file provided in request.")
-        return jsonify({'error': 'Image file not provided'}), 400
+    if 'imageFile' not in request.files or 'user_id' not in request.form:
+        return jsonify({'error': 'Gambar dan user_id harus disertakan'}), 400
 
     file = request.files['imageFile']
-    if file.filename == '':
-        logging.error("Empty image file provided.")
-        return jsonify({'error': 'Empty file'}), 400    
+    user_id = request.form['user_id']
 
     try:
-        user_id = request.form['user_id']
-        # Read and process the image
         image = Image.open(io.BytesIO(file.read()))
-        processed_image = prepare_image(image, target_size=(224, 224))
+        processed_image = prepare_image(image)
         predictions = model.predict(processed_image)
-        predicted_class_index = np.argmax(predictions, axis=1)[0]
-        accuracy = np.max(predictions)
+        predicted_index = np.argmax(predictions)
+        confidence = np.max(predictions)
 
-        # Define a confidence threshold
-        threshold = 0.75
-        if accuracy < threshold:
-            raise Exception("Image classification confidence is too low. Please try another image.")
+        if confidence < 0.75:
+            return jsonify({'error': 'Kepercayaan model terlalu rendah, coba gambar lain'}), 400
 
-        predicted_class = class_names[predicted_class_index]
-        recommendation = recommendations.get(predicted_class, "No recommendation available for this class.")
+        disease = class_names[predicted_index]
+        recommendation = get_recommendation(disease)
 
-        # Save image to Google Cloud Storage
-        filename = f"images/{uuid.uuid4()}.jpg"
-        img_url = save_image(io.BytesIO(file.read()), filename, bucket_name)
+        file.seek(0)
+        image_path = save_image(file, user_id)
 
-        # Save classification results to Firebase
-        save_result(user_id, datetime.now().isoformat(), predicted_class, f"{accuracy:.2%}", img_url)
+        save_result(user_id, disease, confidence, image_path)
 
         return jsonify({
-            'disease': predicted_class,
-            'confidence': f"{accuracy:.2%}",
+            'disease': disease,
+            'confidence': f"{confidence:.2%}",
             'recommendations': recommendation,
-            'image_url': img_url
+            'imagePath': image_path
         })
 
     except Exception as e:
-        logging.error(f"Prediction error: {repr(e)}")
-        return jsonify({'error': str(e)}), 500
+        logging.error(f"Terjadi kesalahan: {repr(e)}")
+        return jsonify({'error': 'Terjadi kesalahan dalam klasifikasi'}), 500
 
+# Jalankan aplikasi di Google Cloud Run
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
