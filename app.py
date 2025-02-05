@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import uuid
 from datetime import datetime
+import logging
 import json
 from google.cloud import storage, secretmanager
 import firebase_admin
