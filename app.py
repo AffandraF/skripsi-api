@@ -19,18 +19,22 @@ SECRET_NAME = "google-services"
 BUCKET_NAME = "skripsi-f7dc5.firebasestorage.app"
 
 # Fungsi untuk mengambil secret dari Google Secret Manager
-def get_secret(secret_name):
+def get_secret(secret_name, is_json=False):
     client = secretmanager.SecretManagerServiceClient()
     secret_path = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
     response = client.access_secret_version(request={"name": secret_path})
-    return json.loads(response.payload.data.decode("UTF-8"))
 
+    if is_json:
+        return json.loads(response.payload.data.decode("UTF-8"))
+    else:
+        return response.payload.data.decode("UTF-8")
+   
 # Inisialisasi Firebase
 def initialize_firebase():
     try:
-        service_account_info = get_secret(SECRET_NAME)
+        service_account_info = get_secret(SECRET_NAME, is_json=True)
         cred = credentials.Certificate(service_account_info)
-        firebase_admin.initialize_app(cred, {"databaseURL": os.getenv("DATABASE_URL")})
+        firebase_admin.initialize_app(cred, {"databaseURL": get_secret("database")})
         logging.info("Firebase initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize Firebase: {repr(e)}")
