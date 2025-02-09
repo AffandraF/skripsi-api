@@ -9,4 +9,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["gunicorn", "-b", ":8080", "app.py"]
+CMD ["gunicorn", "-b", ":8080", "app:app"]
