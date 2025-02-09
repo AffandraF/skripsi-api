@@ -36,21 +36,19 @@ def initialize_firebase():
         raise e
 
 # Load model Google Cloud Storage
-def load_model():
+def load_model(local_model_path):
     try:
         client = storage.Client()
         bucket = client.bucket(BUCKET_NAME)
         blob = bucket.blob("models/model.keras")
-        model_file = io.BytesIO()
-        blob.download_to_file(model_file)
-        model_file.seek(0)
-        return tf.keras.models.load_model(model_file)
+        blob.download_to_filename(local_model_path)       
+        return tf.keras.models.load_model(local_model_path)
     except Exception as e:
         logging.error(f"Error loading model from GCS: {repr(e)}")
         raise e
 
 initialize_firebase()
-model = load_model()
+model = load_model("/tmp/model.keras")
 
 # Daftar kelas penyakit
 class_names = ['Disease Free', 'Disease Free Fruit', 'Phytophthora', 'Red Rust', 'Scab', 'Styler End Rot']
