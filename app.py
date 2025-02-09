@@ -34,7 +34,8 @@ def initialize_firebase():
     try:
         service_account_info = get_secret(SECRET_NAME, is_json=True)
         cred = credentials.Certificate(service_account_info)
-        firebase_admin.initialize_app(cred, {"databaseURL": get_secret("database")})
+        firebase_admin.initialize_app(cred, {"databaseURL": get_secret("database"),
+                                                "storageBucket": BUCKET_NAME})
         logging.info("Firebase initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize Firebase: {repr(e)}")
