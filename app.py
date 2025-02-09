@@ -10,6 +10,7 @@ import json
 from google.cloud import storage, secretmanager
 import firebase_admin
 from firebase_admin import credentials, db, storage as firebase_storage
+import os
 
 app = Flask(__name__)
 
@@ -29,7 +30,7 @@ def initialize_firebase():
     try:
         service_account_info = get_secret(SECRET_NAME)
         cred = credentials.Certificate(service_account_info)
-        firebase_admin.initialize_app(cred)
+        firebase_admin.initialize_app(cred, {"databaseURL": os.getenv("DATABASE_URL")})
         logging.info("Firebase initialized successfully.")
     except Exception as e:
         logging.error(f"Failed to initialize Firebase: {repr(e)}")
