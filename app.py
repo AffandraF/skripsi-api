@@ -20,7 +20,7 @@ BUCKET_NAME = "skripsi-f7dc5.firebasestorage.app"
 # Fungsi untuk mengambil secret dari Google Secret Manager
 def get_secret(secret_name):
     client = secretmanager.SecretManagerServiceClient()
-    secret_path = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/2"
+    secret_path = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
     response = client.access_secret_version(request={"name": secret_path})
     return json.loads(response.payload.data.decode("UTF-8"))
 
