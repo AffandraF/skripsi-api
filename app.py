@@ -86,7 +86,7 @@ def save_result(user_id, disease, confidence, image_path):
     new_entry = ref.push()
     new_entry.set({
         "diseaseName": disease,
-        "accuracy": f"{confidence:.2%}",
+        "confidence": f"{confidence:.2%}",
         "date": datetime.now().strftime("%Y-%m-%d"),
         "imagePath": image_path
     })
