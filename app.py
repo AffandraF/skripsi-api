@@ -57,7 +57,7 @@ initialize_firebase()
 model = load_model("/tmp/model.keras")
 
 # Daftar kelas penyakit
-class_names = ['Disease Free', 'Disease Free Fruit', 'Phytophthora', 'Red Rust', 'Scab', 'Styler End Rot']
+class_names = ['Sehat', 'Phytophthora', 'Scab', 'Styler End Rot']
 
 # Fungsi untuk memproses gambar sebelum klasifikasi
 def prepare_image(image, target_size=(224, 224)):
@@ -107,8 +107,8 @@ def classify():
         predicted_index = np.argmax(predictions)
         confidence = np.max(predictions)
 
-        if confidence < 0.75:
-            return jsonify({'error': 'Kepercayaan model terlalu rendah, coba gambar lain'}), 400
+        # if confidence < 0.75:
+        #     return jsonify({'error': 'Kepercayaan model terlalu rendah, coba gambar lain'}), 400
 
         disease = class_names[predicted_index]
         recommendation = get_recommendation(disease)
