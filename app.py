@@ -18,7 +18,7 @@ PROJECT_ID = "skripsi-f7dc5"
 SECRET_NAME = "google-services"
 BUCKET_NAME = "skripsi-f7dc5.firebasestorage.app"
 
-# Fungsi untuk mengambil secret dari Google Secret Manager
+# Fungsi untuk mengambil kredensial google services dari Google Secret Manager
 def get_secret(secret_name, is_json=False):
     client = secretmanager.SecretManagerServiceClient()
     secret_path = f"projects/{PROJECT_ID}/secrets/{secret_name}/versions/latest"
@@ -105,10 +105,7 @@ def classify():
         processed_image = prepare_image(image)
         predictions = model.predict(processed_image)
         predicted_index = np.argmax(predictions)
-        confidence = np.max(predictions)
-
-        # if confidence < 0.75:
-        #     return jsonify({'error': 'Kepercayaan model terlalu rendah, coba gambar lain'}), 400
+        confidence = np.max(predictions)      
 
         disease = class_names[predicted_index]
         recommendation = get_recommendation(disease)
