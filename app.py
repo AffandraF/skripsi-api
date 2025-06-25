@@ -120,7 +120,7 @@ def classify():
                 'disease': disease,
                 'confidence': f"{confidence:.2%}",
                 'recommendations': "",
-                'message': 'Prediksi tidak yakin. Silakan coba lagi dengan gambar yang lebih jelas.'
+                'message': 'Tingkat keyakinan sistem terhadap hasil klasifikasi saat ini rendah. Silakan ambil gambar yang lebih jelas.'
             }), 200
 
         # Simpan file jika bukan guest
