@@ -100,26 +100,41 @@ def classify():
     file = request.files['imageFile']
     user_id = request.form['user_id']
 
-    try:
-        image = Image.open(io.BytesIO(file.read()))
+    try:        
+        image_bytes = file.read()
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Proses gambar & prediksi
         processed_image = prepare_image(image)
         predictions = model.predict(processed_image)
         predicted_index = np.argmax(predictions)
-        confidence = np.max(predictions)      
+        confidence = float(np.max(predictions))
 
         disease = class_names[predicted_index]
         recommendation = get_recommendation(disease)
 
-        file.seek(0)
-        image_path = save_image(file, user_id)
+        # Jika confidence < 0.7, klasifikasi dianggap gagal
+        if confidence < 0.7:
+            return jsonify({
+                'status': 'failed',
+                'disease': disease,
+                'confidence': f"{confidence:.2%}",
+                'recommendations': "",
+                'message': 'Prediksi tidak yakin. Silakan coba lagi dengan gambar yang lebih jelas.'
+            }), 200
 
-        save_result(user_id, disease, confidence, image_path)
+        # Simpan file jika bukan guest
+        if user_id != "GUEST":
+            file.stream.seek(0)
+            image_path = save_image(file, user_id)
+            save_result(user_id, disease, confidence, image_path)
 
+        # Kembalikan respons ke client
         return jsonify({
+            'status': 'success',
             'disease': disease,
             'confidence': f"{confidence:.2%}",
-            'recommendations': recommendation,
-            'imagePath': image_path
+            'recommendations': recommendation
         })
 
     except Exception as e:
